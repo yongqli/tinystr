@@ -43,6 +43,7 @@ rand = { version = "0.8.5", features = ["small_rng"] }
 default = ["alloc"]
 alloc = []
 bench = []
+std = []
 
 [[test]]
 name = "serde"

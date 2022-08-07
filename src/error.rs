@@ -2,6 +2,9 @@
 // called LICENSE at the top level of the ICU4X source tree
 // (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
 
+#[cfg(feature = "std")]
+use std::error::Error;
+
 use displaydoc::Display;
 
 #[derive(Display, Debug, PartialEq, Eq)]
@@ -13,3 +16,6 @@ pub enum TinyStrError {
     #[displaydoc("attempted to construct TinyStrAuto from a non-ascii string")]
     NonAscii,
 }
+
+#[cfg(feature = "std")]
+impl Error for TinyStrError {}
