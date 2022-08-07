@@ -1,62 +1,19 @@
+// This file is part of ICU4X. For terms of use, please see the file
+// called LICENSE at the top level of the ICU4X source tree
+// (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
+
+// This file was adapted from https://github.com/zbraniecki/tinystr
+
+mod common;
+use common::*;
+
 use criterion::black_box;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::Bencher;
 use criterion::Criterion;
 
-use tinystr::{TinyStr16, TinyStr4, TinyStr8, TinyStrAuto};
-
-static STRINGS_4: &[&str] = &[
-    "US", "GB", "AR", "Hans", "CN", "AT", "PL", "FR", "AT", "Cyrl", "SR", "NO", "FR", "MK", "UK",
-];
-
-static STRINGS_8: &[&str] = &[
-    "Latn", "windows", "AR", "Hans", "macos", "AT", "pl", "FR", "en", "Cyrl", "SR", "NO", "419",
-    "und", "UK",
-];
-
-static STRINGS_16: &[&str] = &[
-    "Latn",
-    "windows",
-    "AR",
-    "Hans",
-    "macos",
-    "AT",
-    "infiniband",
-    "FR",
-    "en",
-    "Cyrl",
-    "FromIntegral",
-    "NO",
-    "419",
-    "MacintoshOSX2019",
-    "UK",
-];
-
-macro_rules! bench_block {
-    ($c:expr, $name:expr, $action:ident) => {
-        let mut group4 = $c.benchmark_group(&format!("{}/4", $name));
-        group4.bench_function("String", $action!(String, STRINGS_4));
-        group4.bench_function("TinyStr4", $action!(TinyStr4, STRINGS_4));
-        group4.bench_function("TinyStr8", $action!(TinyStr8, STRINGS_4));
-        group4.bench_function("TinyStr16", $action!(TinyStr16, STRINGS_4));
-        group4.bench_function("TinyStrAuto", $action!(TinyStrAuto, STRINGS_4));
-        group4.finish();
-
-        let mut group8 = $c.benchmark_group(&format!("{}/8", $name));
-        group8.bench_function("String", $action!(String, STRINGS_8));
-        group8.bench_function("TinyStr8", $action!(TinyStr8, STRINGS_8));
-        group8.bench_function("TinyStr16", $action!(TinyStr16, STRINGS_8));
-        group8.bench_function("TinyStrAuto", $action!(TinyStrAuto, STRINGS_8));
-        group8.finish();
-
-        let mut group16 = $c.benchmark_group(&format!("{}/16", $name));
-        group16.bench_function("String", $action!(String, STRINGS_16));
-        group16.bench_function("TinyStr16", $action!(TinyStr16, STRINGS_16));
-        group16.bench_function("TinyStrAuto", $action!(TinyStrAuto, STRINGS_16));
-        group16.finish();
-    };
-}
+use tinystr::TinyAsciiStr;
 
 fn construct_from_str(c: &mut Criterion) {
     macro_rules! cfs {
@@ -89,55 +46,44 @@ fn construct_from_bytes(c: &mut Criterion) {
     }
 
     let mut group4 = c.benchmark_group("construct_from_bytes/4");
-    group4.bench_function("TinyStr4", cfu!(TinyStr4, STRINGS_4));
-    group4.bench_function("TinyStr8", cfu!(TinyStr8, STRINGS_4));
-    group4.bench_function("TinyStr16", cfu!(TinyStr16, STRINGS_4));
+    group4.bench_function("TinyAsciiStr<4>", cfu!(TinyAsciiStr<4>, STRINGS_4));
+    group4.bench_function(
+        "tinystr_old::TinyStr4",
+        cfu!(tinystr_old::TinyStr4, STRINGS_4),
+    );
+    group4.bench_function("TinyAsciiStr<8>", cfu!(TinyAsciiStr<8>, STRINGS_4));
+    group4.bench_function(
+        "tinystr_old::TinyStr8",
+        cfu!(tinystr_old::TinyStr8, STRINGS_4),
+    );
+    group4.bench_function("TinyAsciiStr<16>", cfu!(TinyAsciiStr<16>, STRINGS_4));
+    group4.bench_function(
+        "tinystr_old::TinyStr16",
+        cfu!(tinystr_old::TinyStr16, STRINGS_4),
+    );
     group4.finish();
 
     let mut group8 = c.benchmark_group("construct_from_bytes/8");
-    group8.bench_function("TinyStr8", cfu!(TinyStr8, STRINGS_8));
-    group8.bench_function("TinyStr16", cfu!(TinyStr16, STRINGS_8));
+    group8.bench_function("TinyAsciiStr<8>", cfu!(TinyAsciiStr<8>, STRINGS_8));
+    group8.bench_function(
+        "tinystr_old::TinyStr8",
+        cfu!(tinystr_old::TinyStr8, STRINGS_8),
+    );
+    group8.bench_function("TinyAsciiStr<16>", cfu!(TinyAsciiStr<16>, STRINGS_8));
+    group8.bench_function(
+        "tinystr_old::TinyStr16",
+        cfu!(tinystr_old::TinyStr16, STRINGS_8),
+    );
     group8.finish();
 
     let mut group16 = c.benchmark_group("construct_from_bytes/16");
-    group16.bench_function("TinyStr16", cfu!(TinyStr16, STRINGS_16));
+    group16.bench_function("TinyAsciiStr<16>", cfu!(TinyAsciiStr<16>, STRINGS_16));
+    group16.bench_function(
+        "tinystr_old::TinyStr16",
+        cfu!(tinystr_old::TinyStr16, STRINGS_16),
+    );
     group16.finish();
 }
 
-fn construct_unchecked(c: &mut Criterion) {
-    macro_rules! cu {
-        ($tty:ty, $rty:ty, $inputs:expr) => {
-            |b| {
-                let raw: Vec<$rty> = $inputs
-                    .iter()
-                    .map(|s| s.parse::<$tty>().unwrap().into())
-                    .collect();
-                b.iter(move || {
-                    for num in &raw {
-                        let _ = unsafe { <$tty>::new_unchecked(black_box(*num)) };
-                    }
-                })
-            }
-        };
-    }
-
-    let mut group4 = c.benchmark_group("construct_unchecked/4");
-    group4.bench_function("TinyStr4", cu!(TinyStr4, u32, STRINGS_4));
-    group4.finish();
-
-    let mut group8 = c.benchmark_group("construct_unchecked/8");
-    group8.bench_function("TinyStr8", cu!(TinyStr8, u64, STRINGS_8));
-    group8.finish();
-
-    let mut group16 = c.benchmark_group("construct_unchecked/16");
-    group16.bench_function("TinyStr16", cu!(TinyStr16, u128, STRINGS_16));
-    group16.finish();
-}
-
-criterion_group!(
-    benches,
-    construct_from_str,
-    construct_from_bytes,
-    construct_unchecked,
-);
+criterion_group!(benches, construct_from_str, construct_from_bytes,);
 criterion_main!(benches);

@@ -1,110 +1,103 @@
-//! `tinystr` is a small ASCII-only bounded length string representation.
+// This file is part of ICU4X. For terms of use, please see the file
+// called LICENSE at the top level of the ICU4X source tree
+// (online at: https://github.com/unicode-org/icu4x/blob/main/LICENSE ).
+
+//! `tinystr` is a utility crate of the [`ICU4X`] project.
 //!
-//! The crate is meant to be used for scenarios where one needs a fast
-//! and memory efficient way to store and manipulate short ASCII-only strings.
+//! It includes [`TinyAsciiStr`], a core API for representing small ASCII-only bounded length strings.
 //!
-//! `tinystr` converts each string into an unsigned integer, and uses bitmasking
-//! to compare, convert cases and test for common characteristics of strings.
+//! It is optimized for operations on strings of size 8 or smaller. When use cases involve comparison
+//! and conversion of strings for lowercase/uppercase/titlecase, or checking
+//! numeric/alphabetic/alphanumeric, `TinyAsciiStr` is the edge performance library.
 //!
-//! # Details
+//! # Examples
 //!
-//! The crate provides three structs and an enum:
-//! * `TinyStr4` an ASCII-only string limited to 4 characters.
-//! * `TinyStr8` an ASCII-only string limited to 8 characters.
-//! * `TinyStr16` an ASCII-only string limited to 16 characters.
-//! * `TinyStrAuto` (enum):
-//!   * `Tiny` when the string is 16 characters or less.
-//!   * `Heap` when the string is 17 or more characters.
+//! ```rust
+//! use tinystr::TinyAsciiStr;
 //!
-//! `TinyStrAuto` stores the string as a TinyStr16 when it is short enough, or else falls back to a
-//! standard `String`. You should use TinyStrAuto when you expect most strings to be 16 characters
-//! or smaller, but occasionally you receive one that exceeds that length. Unlike the structs,
-//! `TinyStrAuto` does not implement `Copy`.
-//!
-//! # Macros
-//!
-//! Compile-time macros are available to convert string literals into const TinyStrs:
-//! * `tinystr4!("abc")`
-//! * `tinystr8!("abcdefg")`
-//! * `tinystr16!("longer-string")`
-//!
-//! # no_std
-//!
-//! Disable the `std` feature of this crate to make it `#[no_std]`. Doing so disables `TinyStrAuto`.
-//! You can re-enable `TinyStrAuto` in `#[no_std]` mode by enabling the `alloc` feature.
-//!
-//! # Example
-//!
-//! ```
-//! use tinystr::{TinyStr4, TinyStr8, TinyStr16, TinyStrAuto};
-//! use tinystr::{tinystr4, tinystr8, tinystr16};
-//!
-//! let s1: TinyStr4 = tinystr4!("tEsT");
+//! let s1: TinyAsciiStr<4> = "tEsT".parse().expect("Failed to parse.");
 //!
 //! assert_eq!(s1, "tEsT");
 //! assert_eq!(s1.to_ascii_uppercase(), "TEST");
 //! assert_eq!(s1.to_ascii_lowercase(), "test");
 //! assert_eq!(s1.to_ascii_titlecase(), "Test");
 //! assert_eq!(s1.is_ascii_alphanumeric(), true);
+//! assert_eq!(s1.is_ascii_numeric(), false);
 //!
-//! let s2: TinyStr8 = tinystr8!("New York");
+//! let s2 = TinyAsciiStr::<8>::try_from_raw(*b"New York").expect("Failed to parse.");
 //!
 //! assert_eq!(s2, "New York");
 //! assert_eq!(s2.to_ascii_uppercase(), "NEW YORK");
 //! assert_eq!(s2.to_ascii_lowercase(), "new york");
 //! assert_eq!(s2.to_ascii_titlecase(), "New york");
 //! assert_eq!(s2.is_ascii_alphanumeric(), false);
-//!
-//! let s3: TinyStr16 = tinystr16!("metaMoRphosis123");
-//!
-//! assert_eq!(s3, "metaMoRphosis123");
-//! assert_eq!(s3.to_ascii_uppercase(), "METAMORPHOSIS123");
-//! assert_eq!(s3.to_ascii_lowercase(), "metamorphosis123");
-//! assert_eq!(s3.to_ascii_titlecase(), "Metamorphosis123");
-//! assert_eq!(s3.is_ascii_alphanumeric(), true);
-//!
-//! let s4: TinyStrAuto = "shortNoAlloc".parse()
-//!     .expect("Failed to parse.");
-//! assert!(matches!(s4, TinyStrAuto::Tiny { .. }));
-//! assert_eq!(s4, "shortNoAlloc");
-//!
-//! let s5: TinyStrAuto = "longFallbackToHeap".parse()
-//!     .expect("Failed to parse.");
-//! assert!(matches!(s5, TinyStrAuto::Heap { .. }));
-//! assert_eq!(s5, "longFallbackToHeap");
 //! ```
+//!
+//! # Details
+//!
+//! When strings are of size 8 or smaller, the struct transforms the strings as `u32`/`u64` and uses
+//! bitmasking to provide basic string manipulation operations:
+//! * `is_ascii_numeric`
+//! * `is_ascii_alphabetic`
+//! * `is_ascii_alphanumeric`
+//! * `to_ascii_lowercase`
+//! * `to_ascii_uppercase`
+//! * `to_ascii_titlecase`
+//! * `PartialEq`
+//!
+//! `TinyAsciiStr` will fall back to `u8` character manipulation for strings of length greater than 8.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+//!
+//! [`ICU4X`]: ../icu/index.html
 
-#[cfg(any(feature = "std", test))]
-extern crate std;
+// https://github.com/unicode-org/icu4x/blob/main/docs/process/boilerplate.md#library-annotations
+#![cfg_attr(not(test), no_std)]
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::indexing_slicing,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::exhaustive_structs,
+        // TODO(#1668): enable clippy::exhaustive_enums,
+        missing_debug_implementations,
+    )
+)]
 
-#[cfg(all(not(feature = "std"), not(test)))]
-extern crate core as std;
+mod macros;
+
+mod ascii;
+mod error;
+mod int_ops;
 
 #[cfg(feature = "serde")]
-extern crate alloc;
+mod serde;
 
-#[macro_use]
-mod macros;
-mod tinystr16;
-mod tinystr4;
-mod tinystr8;
+#[cfg(feature = "databake")]
+mod databake;
 
 #[cfg(feature = "zerovec")]
-pub mod ule;
+mod ule;
 
-/// Re-export of the low-level tinystr_macros crate, required by the macros.
-pub use tinystr_macros as raw_macros;
+#[cfg(any(feature = "serde", feature = "alloc"))]
+extern crate alloc;
 
-#[cfg(any(feature = "std", feature = "alloc"))]
-mod tinystrauto;
+pub use ascii::TinyAsciiStr;
+pub use error::TinyStrError;
 
-pub use tinystr16::TinyStr16;
-pub use tinystr4::TinyStr4;
-pub use tinystr8::TinyStr8;
+/// These are temporary compatability reexports that will be removed
+/// in a future version.
+pub type TinyStr4 = TinyAsciiStr<4>;
+/// These are temporary compatability reexports that will be removed
+/// in a future version.
+pub type TinyStr8 = TinyAsciiStr<8>;
+/// These are temporary compatability reexports that will be removed
+/// in a future version.
+pub type TinyStr16 = TinyAsciiStr<16>;
 
-#[cfg(any(feature = "std", feature = "alloc"))]
-pub use tinystrauto::TinyStrAuto;
-
-pub use tinystr_raw::Error;
+// /// Allows unit tests to use the macro
+// #[cfg(test)]
+// mod tinystr {
+//     pub use super::{TinyAsciiStr, TinyStrError};
+// }
