@@ -10,6 +10,14 @@ use core::str::{self, FromStr};
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash)]
+#[cfg_attr(
+    feature = "rkyv",
+    derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize),
+    cfg_attr(
+        not(any(feature = "archive_le", feature = "archive_be")),
+        archive(as = "Self", bound(archive = "[u8; N]: rkyv::Archive<Archived = [u8; N]>")),
+    ),
+)]
 pub struct TinyAsciiStr<const N: usize> {
     bytes: [u8; N],
 }
